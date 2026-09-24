@@ -180,7 +180,8 @@
   }
 
   // ------------------------------------------------------------ tour
-  const TOUR = ['galaxy', 'butterfly', 'planet', 'lorenz', 'dna', 'heart', 'knot', 'nebula'];
+  // same order as the dock on screen
+  const TOUR = L.SHAPES.map((s) => s.id);
   const tour = { on: false, idx: 0, next: 0 };
   function setTour(on) {
     tour.on = on;
@@ -438,13 +439,14 @@
     $('#intro').classList.add('gone');
     document.body.classList.remove('booting');
     showText('LUMEN', { fromTour: true });
+    // the LUMEN title stays for 10 s, then the tour begins
     setTimeout(() => {
       if (lastSource && lastSource.type === 'text' && lastSource.value === 'LUMEN') {
         setTour(true);
         tour.idx = 0;
         tour.next = time;
       }
-    }, 5200);
+    }, 10000);
     setTimeout(cycleHints, 2500);
     armIdle();
   }
@@ -745,7 +747,7 @@
     if (tour.on && time > tour.next) {
       selectShape(TOUR[tour.idx % TOUR.length], { fromTour: true });
       tour.idx++;
-      tour.next = time + 16;
+      tour.next = time + 20;
     }
 
     fpsFrames++;

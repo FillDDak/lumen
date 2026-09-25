@@ -12,7 +12,7 @@
     set(k, v) { try { localStorage.setItem('lumen.' + k, JSON.stringify(v)); } catch (e) { /* storage unavailable */ } },
   };
   const coarse = matchMedia('(pointer: coarse)').matches;
-  const DEFAULTS = { count: coarse ? 512 : 1024, trail: 0.45, bloom: 1.0, turb: 1.0, exposure: 1.0, size: 1.0, volume: 0.8, orbit: true, userCount: false };
+  const DEFAULTS = { count: coarse ? 512 : 1024, trail: 0.45, bloom: 1.0, turb: 1.0, exposure: 1.0, size: 1.0, volume: 0.8, react: 1.0, orbit: true, userCount: false };
   const settings = Object.assign({}, DEFAULTS, store.get('settings', {}));
   const saveSettings = () => store.set('settings', settings);
 
@@ -433,6 +433,7 @@
   bind('#setExposure', 'exposure', pct, (v) => (engine.params.exposure = v));
   bind('#setSize', 'size', pct, (v) => (engine.params.size = v));
   bind('#setTurb', 'turb', pct, (v) => (engine.params.turb = v));
+  bind('#setReact', 'react', pct, () => {}); // read every frame
   bind('#setVolume', 'volume', pct, (v) => audio.setVolume(v));
   $('#setCount').value = String(settings.count);
   $('#setCount').addEventListener('change', (e) => {
@@ -448,7 +449,7 @@
     saveSettings();
     Object.assign(engine.params, { trail: settings.trail, bloom: settings.bloom, turb: settings.turb, exposure: settings.exposure, size: settings.size });
     audio.setVolume(settings.volume);
-    ['Trail', 'Bloom', 'Exposure', 'Size', 'Turb', 'Volume'].forEach((k) => {
+    ['Trail', 'Bloom', 'Exposure', 'Size', 'Turb', 'React', 'Volume'].forEach((k) => {
       const key = k.toLowerCase();
       $('#set' + k).value = settings[key];
       $('#o' + k).textContent = pct(settings[key]);
@@ -737,7 +738,8 @@
 
   function onAudioEvent(e) {
     if (e.type === 'note') {
-      engine.addShock(engine.randomPoint(), 2.2 + e.vel * 6, 1.5, 0.2, 1.3, time);
+      // "소리 반응" setting scales how much the music ripples the particles
+      if (settings.react > 0.01) engine.addShock(engine.randomPoint(), (2.2 + e.vel * 6) * settings.react, 1.5, 0.2, 1.3, time);
     } else if (e.type === 'beat') {
       pulse = Math.max(pulse, e.amp);
     }
@@ -763,8 +765,8 @@
     pulse *= Math.exp(-dt * 7);
     engine.flash *= Math.exp(-dt * 5);
     u.pulse = pulse;
-    u.bass = audio.micOn ? bands.bass * 1.6 : bands.bass * 0.8;
-    u.high = bands.high;
+    u.bass = (audio.micOn ? bands.bass * 1.6 : bands.bass * 0.8) * settings.react;
+    u.high = bands.high * settings.react;
 
     if (videoStream && current && current.id === 'video') engine.updateVideo(video);
 

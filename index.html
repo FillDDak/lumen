@@ -118,6 +118,15 @@
         <option value="1448">2,096,704 · 이백만 (고성능)</option>
       </select>
     </label>
+    <label class="field">
+      <span>프레임 제한</span>
+      <select id="setFps">
+        <option value="0">자동 · 모니터 주사율</option>
+        <option value="30">30 fps · 배터리 절약</option>
+        <option value="60">60 fps</option>
+        <option value="120">120 fps</option>
+      </select>
+    </label>
     <label class="field"><span>잔상 <output id="oTrail"></output></span><input type="range" id="setTrail" min="0" max="0.9" step="0.01"></label>
     <label class="field"><span>빛 번짐 <output id="oBloom"></output></span><input type="range" id="setBloom" min="0" max="2.5" step="0.01"></label>
     <label class="field"><span>밝기 <output id="oExposure"></output></span><input type="range" id="setExposure" min="0.3" max="2.5" step="0.01"></label>

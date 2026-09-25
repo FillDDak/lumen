@@ -291,10 +291,18 @@
       }
       gl.disable(gl.BLEND);
 
-      // --- composite
+      this.present(time);
+    }
+
+    // Composite the HDR + bloom buffers onto the canvas.
+    present(time) {
+      const gl = this.gl;
+      const { W, H } = this;
+      const B = this.bloom;
       gl.bindFramebuffer(gl.FRAMEBUFFER, null);
       gl.viewport(0, 0, W, H);
-      p = G.use(this.pComp);
+      gl.bindVertexArray(this.vao);
+      const p = G.use(this.pComp);
       G.tex(p, 'uHdr', this.hdr.tex);
       G.tex(p, 'uBloom', B[0].tex);
       G.setAll(p, {

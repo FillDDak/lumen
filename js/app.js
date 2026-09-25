@@ -12,8 +12,9 @@
     set(k, v) { try { localStorage.setItem('lumen.' + k, JSON.stringify(v)); } catch (e) { /* storage unavailable */ } },
   };
   const coarse = matchMedia('(pointer: coarse)').matches;
-  const DEFAULTS = { count: coarse ? 512 : 1024, trail: 0.45, bloom: 1.0, turb: 1.0, exposure: 1.0, size: 1.0, volume: 0.8, react: 1.0, orbit: true, userCount: false };
+  const DEFAULTS = { count: coarse ? 512 : 1024, trail: 0.45, bloom: 1.0, turb: 1.0, exposure: 1.0, size: 1.0, volume: 0.8, react: 1.0, fps: 0, orbit: true, userCount: false };
   const settings = Object.assign({}, DEFAULTS, store.get('settings', {}));
+  if (![0, 30, 60, 120].includes(settings.fps)) settings.fps = 0;
   const saveSettings = () => store.set('settings', settings);
 
   // ------------------------------------------------------------ boot
@@ -410,7 +411,7 @@
     else document.documentElement.requestFullscreen && document.documentElement.requestFullscreen().catch(() => {});
   }
   $('#btnFull').addEventListener('click', toggleFull);
-  $('#btnSettings').addEventListener('click', () => openPanel('#settingsPanel'));
+  $('#btnSettings').addEventListener('click', () => { if (openPanel('#settingsPanel')) measureRefresh(); });
   $('#btnHelp').addEventListener('click', () => openPanel('#helpPanel'));
   document.querySelectorAll('[data-close]').forEach((b) => b.addEventListener('click', closePanels));
 
@@ -442,6 +443,36 @@
     saveSettings();
     setCount(settings.count);
   });
+  // Browsers don't expose the refresh rate, but requestAnimationFrame fires once per
+  // display refresh, so the median interval over ~60 frames gives a good estimate.
+  const COMMON_HZ = [24, 30, 48, 50, 60, 72, 75, 90, 100, 120, 144, 165, 170, 175, 180, 200, 240, 280, 360, 480];
+  let measuringHz = false;
+  function measureRefresh() {
+    if (measuringHz || document.hidden) return;
+    measuringHz = true;
+    const deltas = [];
+    let prev = 0;
+    const step = (t) => {
+      if (prev) deltas.push(t - prev);
+      prev = t;
+      if (deltas.length < 60) { requestAnimationFrame(step); return; }
+      measuringHz = false;
+      // dropped frames only make intervals longer, so read a low percentile
+      deltas.sort((a, b) => a - b);
+      const hz = 1000 / deltas[Math.floor(deltas.length * 0.2)];
+      const snap = COMMON_HZ.find((c) => Math.abs(c - hz) / c < 0.03);
+      $('#setFps option[value="0"]').textContent = `자동 · 모니터 주사율 (${snap || Math.round(hz)}Hz)`;
+    };
+    requestAnimationFrame(step);
+  }
+  setTimeout(measureRefresh, 3000);
+
+  $('#setFps').value = String(settings.fps);
+  $('#setFps').addEventListener('change', (e) => {
+    settings.fps = +e.target.value;
+    saveSettings();
+    updateStats(true);
+  });
   $('#setOrbit').checked = settings.orbit;
   $('#setOrbit').addEventListener('change', (e) => { settings.orbit = e.target.checked; saveSettings(); });
   $('#btnReset').addEventListener('click', () => {
@@ -455,6 +486,7 @@
       $('#o' + k).textContent = pct(settings[key]);
     });
     $('#setCount').value = String(settings.count);
+    $('#setFps').value = String(settings.fps);
     $('#setOrbit').checked = settings.orbit;
     setCount(settings.count);
     toast('기본값으로 되돌렸어요');
@@ -745,8 +777,20 @@
     }
   }
 
-  function frame(nowMs) {
+  // Frame pacing. fps setting: 0 = every display refresh (requestAnimationFrame), which
+  // is already the most a browser can show; 30/60/120 = skip refreshes to stay under it.
+  let lastDraw = 0;
+  function scheduleFrame() {
     requestAnimationFrame(frame);
+  }
+
+  function frame(nowMs) {
+    scheduleFrame();
+    if (settings.fps > 0) {
+      const interval = 1000 / settings.fps;
+      if (nowMs - lastDraw < interval - 2) return;
+      lastDraw = Math.max(lastDraw + interval, nowMs - interval);
+    }
     const now = nowMs / 1000;
     const dt = U.clamp(now - last, 0.0005, 1 / 30);
     last = now;
@@ -795,7 +839,9 @@
         const sorted = perfSamples.slice().sort((a, b) => a - b);
         const median = sorted[sorted.length >> 1];
         perfSamples = [];
-        if (median > 1 / 32 && engine.N > 256) {
+        // a frame-rate cap makes frames slow on purpose: only count time beyond the cap
+        const expected = settings.fps > 0 ? 1.3 / settings.fps : 0;
+        if (median > Math.max(1 / 32, expected) && engine.N > 256) {
           const n = engine.N > 768 ? 768 : engine.N > 512 ? 512 : 256;
           if (++perfDowngrades < 3) perfChecked = false; // measure again at the new size
           settings.count = n;
@@ -814,7 +860,7 @@
   applyShape(L.SPECIAL.orb, L.gen.orb(engine.N * engine.N), { quiet: true, noCaption: true });
   syncSoundIcon();
   updateStats(true);
-  requestAnimationFrame(frame);
+  scheduleFrame();
 
   if (params.has('autostart')) start(false);
 

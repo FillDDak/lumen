@@ -78,6 +78,7 @@
       cam.tPhi = def.phi;
     }
     cam.baseDist = def.dist;
+    cam.fitWidth = def.fitWidth || (cam.front ? 1.3 : 1.05);
     audio.heart = def.anim === 2;
     if (!opts.quiet) audio.whoosh();
     engine.addShock([0, 0, 0], 4, 4.5, 0.8, 1.4, time);
@@ -170,6 +171,7 @@
     else if (s.type === 'text') showText(s.value, { quiet: true, fromTour: tour.on });
     else if (s.type === 'image') showImage(s.value);
     else if (s.type === 'video') applyShape(L.SPECIAL.video, null, { quiet: true });
+    else if (s.type === 'orb') applyShape(L.SPECIAL.orb, L.gen.orb(engine.N * engine.N), { quiet: true, noCaption: true });
   }
 
   function setCount(n) {
@@ -690,7 +692,7 @@
     cam.phi += (cam.tPhi - cam.phi) * k;
     const aspect = engine.W / engine.H;
     // keep shapes inside narrow (portrait) screens; flat front-facing ones are widest
-    const fit = Math.max(1, (cam.front ? 1.3 : 1.05) / aspect);
+    const fit = Math.max(1, (cam.fitWidth || 1.05) / aspect);
     cam.dist += (cam.baseDist * fit * cam.zoom - cam.dist) * U.damp(1.8, dt);
     let th = cam.theta, ph = cam.phi;
     if (cam.front) { th += Math.sin(time * 0.33) * 0.17; ph += Math.sin(time * 0.23) * 0.06; }
@@ -776,11 +778,11 @@
     }
   }
 
-  // initial state: a slowly swirling nebula behind the intro
+  // initial state: a glowing orb of particles behind the intro title (same look as the favicon)
   resize();
   updateCamera(0.016);
-  lastSource = { type: 'shape', id: 'nebula' };
-  applyShape(L.SHAPES[0], L.SHAPES[0].gen(engine.N * engine.N), { quiet: true, noCaption: true });
+  lastSource = { type: 'orb' };
+  applyShape(L.SPECIAL.orb, L.gen.orb(engine.N * engine.N), { quiet: true, noCaption: true });
   syncSoundIcon();
   updateStats(true);
   requestAnimationFrame(frame);

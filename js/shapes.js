@@ -54,6 +54,25 @@ function lumenShapes(L) {
     return S;
   }
 
+  // ------------------------------------------------------------------ orb (intro screen, same look as the favicon)
+  function orb(n) {
+    const S = alloc(n);
+    const teal = [0.1, 0.85, 0.85], violet = [0.55, 0.18, 1.0], pink = [1.0, 0.25, 0.55], blue = [0.1, 0.22, 1.0];
+    const lx = -0.55, ly = 0.6, lz = 0.58; // teal side faces upper-left
+    const Rb = 1.75;
+    for (let i = 0; i < n; i++) {
+      const d = unitVec();
+      const surface = R() < 0.7;
+      const r = surface ? Rb * (1 + (R() - 0.5) * 0.02) : Rb * Math.cbrt(R());
+      const k = 0.5 + 0.5 * (d[0] * lx + d[1] * ly + d[2] * lz);
+      let c = k > 0.5 ? mix3(violet, teal, (k - 0.5) * 2) : mix3(pink, violet, k * 2);
+      const band = 0.5 + 0.5 * Math.sin(d[1] * 7 + Math.sin(d[0] * 4 + d[2] * 3) * 1.6);
+      c = mix3(c, blue, 0.18 * band);
+      put(S, i, d[0] * r, d[1] * r, d[2] * r, c, surface ? 0.55 + 0.45 * band : 0.35);
+    }
+    return S;
+  }
+
   // ------------------------------------------------------------------ galaxy
   function galaxy(n) {
     const S = alloc(n);
@@ -422,7 +441,7 @@ function lumenShapes(L) {
 
   // ------------------------------------------------------------------ registry
   L.SHAPES = [
-    { id: 'nebula', label: '성운', en: 'Nebula', line: '별이 태어나는 요람', mode: 1, color: 1, dist: 7.2, phi: 0.35, gen: nebula, gain: 0.8 },
+    { id: 'nebula', label: '성운', en: 'Nebula', line: '별이 태어나는 요람', mode: 1, color: 1, dist: 9.5, phi: 0.35, gen: nebula, gain: 0.8 },
     { id: 'galaxy', label: '은하', en: 'Spiral Galaxy', line: '천억 개의 태양이 그리는 소용돌이', mode: 0, color: 0, dist: 6.4, phi: 0.62, gen: galaxy, gain: 1.0 },
     { id: 'planet', label: '행성', en: 'Ringed World', line: '고리를 두른 거인', mode: 0, color: 0, dist: 6.8, phi: 0.36, gen: planet, gain: 1.0 },
     { id: 'butterfly', label: '나비', en: 'The Butterfly Effect', line: '작은 날갯짓 하나가 폭풍을 부른다', mode: 0, color: 0, anim: 1, dist: 6.0, phi: 0.45, gen: butterfly, gain: 0.9 },
@@ -432,11 +451,12 @@ function lumenShapes(L) {
     { id: 'heart', label: '심장', en: 'Heart', line: '음악에 맞춰 뛰는 심장', mode: 0, color: 0, anim: 2, dist: 5.8, phi: 0.12, gen: heart, gain: 0.9 },
   ];
   L.SPECIAL = {
+    orb: { id: 'orb', label: '', en: '', mode: 0, color: 0, front: true, dist: 7.2, phi: 0, gain: 1.25, fitWidth: 0.8 },
     text: { id: 'text', label: '글자', en: 'Your Words', mode: 0, color: 0, front: true, dist: 6.0, phi: 0, gain: 0.8 },
     image: { id: 'image', label: '사진', en: 'Your Picture', line: '당신의 사진을 빛으로 다시 그리다', mode: 0, color: 0, front: true, dist: 6.0, phi: 0, gain: 1.0 },
     video: { id: 'video', label: '거울', en: 'Mirror', line: '빛으로 비추는 당신의 모습', mode: 3, color: 3, front: true, dist: 6.0, phi: 0, gain: 1.0 },
   };
-  L.gen = { text, image, nebula };
+  L.gen = { text, image, nebula, orb };
 }
 
 (function (L) {

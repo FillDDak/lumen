@@ -28,6 +28,22 @@
     if (!navigator.audioSession) silentKeepAlive(type === 'playback');
   }
 
+  // What iOS / Android show in the "now playing" controls. Full-bleed square
+  // artwork: the OS rounds the corners itself, so transparent corners would show white.
+  function setNowPlaying() {
+    if (!('mediaSession' in navigator) || !window.MediaMetadata) return;
+    try {
+      navigator.mediaSession.metadata = new MediaMetadata({
+        title: 'LUMEN',
+        artist: '빛의 악기',
+        artwork: [
+          { src: 'icon-512.png?v=5', sizes: '512x512', type: 'image/png' },
+          { src: 'icon-192.png?v=5', sizes: '192x192', type: 'image/png' },
+        ],
+      });
+    } catch (e) { /* unsupported */ }
+  }
+
   let keepAlive = null;
   function silentKeepAlive(on) {
     if (!on) { if (keepAlive) keepAlive.pause(); return; }
@@ -63,6 +79,7 @@
     init() {
       if (this.ready) return;
       setAudioSession(this.micOn ? 'play-and-record' : 'playback');
+      setNowPlaying();
       const AC = window.AudioContext || window.webkitAudioContext;
       const ctx = (this.ctx = new AC({ latencyHint: 'interactive' }));
 

@@ -23,6 +23,28 @@
   // microphone switches to 'play-and-record' while it listens.
   function setAudioSession(type) {
     try { if (navigator.audioSession) navigator.audioSession.type = type; } catch (e) { /* unsupported */ }
+    // Older iOS has no Audio Session API: a looping silent <audio> element puts the
+    // page in "media playback" mode, which also lets Web Audio ignore the silent switch.
+    if (!navigator.audioSession) silentKeepAlive(type === 'playback');
+  }
+
+  let keepAlive = null;
+  function silentKeepAlive(on) {
+    if (!on) { if (keepAlive) keepAlive.pause(); return; }
+    if (!keepAlive) {
+      // 0.25 s of 8-bit mono silence as a WAV file
+      const n = 2000, buf = new ArrayBuffer(44 + n), v = new DataView(buf);
+      const str = (o, t) => [...t].forEach((c, i) => v.setUint8(o + i, c.charCodeAt(0)));
+      str(0, 'RIFF'); v.setUint32(4, 36 + n, true); str(8, 'WAVE'); str(12, 'fmt ');
+      v.setUint32(16, 16, true); v.setUint16(20, 1, true); v.setUint16(22, 1, true);
+      v.setUint32(24, 8000, true); v.setUint32(28, 8000, true); v.setUint16(32, 1, true); v.setUint16(34, 8, true);
+      str(36, 'data'); v.setUint32(40, n, true);
+      for (let i = 0; i < n; i++) v.setUint8(44 + i, 128);
+      keepAlive = new Audio(URL.createObjectURL(new Blob([buf], { type: 'audio/wav' })));
+      keepAlive.loop = true;
+      keepAlive.setAttribute('playsinline', '');
+    }
+    keepAlive.play().catch(() => { /* needs a user gesture; retried on the next one */ });
   }
 
   class AudioEngine {

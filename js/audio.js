@@ -18,6 +18,13 @@
   ];
   const SCALE = [62, 64, 66, 69, 71, 74, 76, 78, 81, 83, 86, 88]; // D major pentatonic
 
+  // Audio Session API (Safari/iOS); a no-op elsewhere. 'playback' lets LUMEN be
+  // heard with the ringer switch on silent, but it cannot record, so the
+  // microphone switches to 'play-and-record' while it listens.
+  function setAudioSession(type) {
+    try { if (navigator.audioSession) navigator.audioSession.type = type; } catch (e) { /* unsupported */ }
+  }
+
   class AudioEngine {
     constructor() {
       this.ready = false;
@@ -33,6 +40,7 @@
 
     init() {
       if (this.ready) return;
+      setAudioSession(this.micOn ? 'play-and-record' : 'playback');
       const AC = window.AudioContext || window.webkitAudioContext;
       const ctx = (this.ctx = new AC({ latencyHint: 'interactive' }));
 
@@ -423,6 +431,7 @@
         err.name = 'InsecureContextError';
         throw err;
       }
+      setAudioSession('play-and-record');
       // created before the await so it still counts as a user gesture on iOS
       const AC = window.AudioContext || window.webkitAudioContext;
       const micCtx = new AC();
@@ -431,6 +440,7 @@
         stream = await navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: false, noiseSuppression: false, autoGainControl: true } });
       } catch (e) {
         micCtx.close();
+        setAudioSession(this.ready ? 'playback' : 'auto');
         throw e;
       }
       if (micCtx.state !== 'running') await micCtx.resume().catch(() => {});
@@ -454,6 +464,7 @@
       if (this.micCtx) this.micCtx.close().catch(() => {});
       this.micStream = this.micSrc = this.micAnalyser = this.micCtx = null;
       this.micOn = false;
+      setAudioSession(this.ready ? 'playback' : 'auto');
       if (this.pausedForMic) {
         this.pausedForMic = false;
         this.ctx.resume().catch(() => {});

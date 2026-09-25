@@ -284,6 +284,17 @@
     dockShapes.appendChild(b);
   });
 
+  // Fade the dock's edges on the sides where more buttons are scrolled out of view.
+  const dockTrack = $('#dockTrack');
+  function updateDockFade() {
+    const max = dockTrack.scrollWidth - dockTrack.clientWidth;
+    dockTrack.classList.toggle('more-left', dockTrack.scrollLeft > 2);
+    dockTrack.classList.toggle('more-right', dockTrack.scrollLeft < max - 2);
+  }
+  dockTrack.addEventListener('scroll', updateDockFade, { passive: true });
+  window.addEventListener('resize', updateDockFade);
+  updateDockFade();
+
   $('#btnText').addEventListener('click', () => {
     if (openPanel('#textPanel')) setTimeout(() => $('#textInput').focus(), 50);
   });
@@ -303,13 +314,13 @@
     if (audio.micOn) {
       audio.disableMic();
       b.classList.remove('on');
-      toast('마이크를 껐어요 — 다시 음악이 흐릅니다');
+      toast(audio.ready && !audio.muted ? '마이크를 껐어요 — LUMEN 음악이 다시 흘러요' : '마이크를 껐어요');
       return;
     }
     try {
       await audio.enableMic();
       b.classList.add('on');
-      toast('마이크를 켰어요 — 말하거나, 노래하거나, 음악을 틀어보세요');
+      toast(audio.pausedForMic ? '마이크를 켰어요 — 주변 소리에 빛이 반응해요 (LUMEN 음악은 잠시 쉬어요)' : '마이크를 켰어요 — 주변 소리에 빛이 반응해요', 4200);
     } catch (e) {
       console.warn(e);
       toast(mediaErrorMessage(e, '마이크'), 4200);
@@ -324,6 +335,7 @@
     $('#btnSound').classList.toggle('on', !muted);
   }
   function toggleSound() {
+    if (audio.micOn) { toast('마이크를 켜 둔 동안에는 LUMEN 음악이 쉬어요 — 마이크를 끄면 다시 흘러요'); return; }
     if (!audio.ready) { audio.init(); audio.setMuted(false); }
     else audio.setMuted(!audio.muted);
     syncSoundIcon();

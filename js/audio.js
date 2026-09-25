@@ -18,11 +18,6 @@
   ];
   const SCALE = [62, 64, 66, 69, 71, 74, 76, 78, 81, 83, 86, 88]; // D major pentatonic
 
-  // Audio Session API (Safari/iOS); a no-op elsewhere.
-  function setAudioSession(type) {
-    try { if (navigator.audioSession) navigator.audioSession.type = type; } catch (e) { /* unsupported */ }
-  }
-
   class AudioEngine {
     constructor() {
       this.ready = false;
@@ -38,8 +33,6 @@
 
     init() {
       if (this.ready) return;
-      // iOS: play through the ringer/silent switch like a media app
-      setAudioSession('playback');
       const AC = window.AudioContext || window.webkitAudioContext;
       const ctx = (this.ctx = new AC({ latencyHint: 'interactive' }));
 
@@ -296,8 +289,13 @@
     }
 
     // ------------------------------------------------------------ interaction sounds
+    // false while the engine is off, or paused because the microphone is listening
+    get live() {
+      return this.ready && !this.micOn;
+    }
+
     pluckAt(xn, yn, strength) {
-      if (!this.ready) return null;
+      if (!this.live) return null;
       const t = this.ctx.currentTime + 0.005;
       const idx = Math.max(0, Math.min(SCALE.length - 1, Math.floor(xn * SCALE.length)));
       const n = SCALE[idx] + (yn < 0.35 ? 12 : yn > 0.75 ? -12 : 0);
@@ -307,7 +305,7 @@
     }
 
     whoosh() {
-      if (!this.ready) return;
+      if (!this.live) return;
       const ctx = this.ctx;
       const t = ctx.currentTime;
       const src = this.noiseSrc();
@@ -333,7 +331,7 @@
     }
 
     boom(power) {
-      if (!this.ready) return;
+      if (!this.live) return;
       const ctx = this.ctx;
       const t = ctx.currentTime + 0.01;
       const o = ctx.createOscillator();
@@ -363,7 +361,7 @@
     }
 
     holdStart() {
-      if (!this.ready || this.holdNodes) return;
+      if (!this.live || this.holdNodes) return;
       const ctx = this.ctx;
       const t = ctx.currentTime;
       const o1 = ctx.createOscillator();
@@ -416,57 +414,65 @@
     }
 
     // ------------------------------------------------------------ microphone
+    // The microphone gets its own analysis-only context (nothing is played through
+    // it), and LUMEN's own sound engine pauses while listening. This keeps LUMEN
+    // from competing for the audio output with music playing in other apps.
     async enableMic() {
-      if (!this.ready) this.init();
       if (!window.isSecureContext || !navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
         const err = new Error('Microphone needs a secure (https) page');
         err.name = 'InsecureContextError';
         throw err;
       }
-      // iOS: a 'playback' audio session cannot record, so switch while the mic is on
-      setAudioSession('play-and-record');
+      // created before the await so it still counts as a user gesture on iOS
+      const AC = window.AudioContext || window.webkitAudioContext;
+      const micCtx = new AC();
       let stream;
       try {
         stream = await navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: false, noiseSuppression: false, autoGainControl: true } });
       } catch (e) {
-        setAudioSession('playback');
+        micCtx.close();
         throw e;
       }
-      // the permission prompt can suspend/interrupt the context on mobile
-      if (this.ctx.state !== 'running') await this.ctx.resume().catch(() => {});
+      if (micCtx.state !== 'running') await micCtx.resume().catch(() => {});
+      if (this.ready && this.ctx.state === 'running') {
+        this.holdEnd();
+        await this.ctx.suspend().catch(() => {});
+        this.pausedForMic = true;
+      }
+      this.micCtx = micCtx;
       this.micStream = stream;
-      this.micSrc = this.ctx.createMediaStreamSource(stream);
-      this.micAnalyser = this.ctx.createAnalyser();
+      this.micSrc = micCtx.createMediaStreamSource(stream);
+      this.micAnalyser = micCtx.createAnalyser();
       this.micAnalyser.fftSize = 2048;
       this.micAnalyser.smoothingTimeConstant = 0.6;
-      // some mobile browsers only process nodes that reach the destination: add a silent sink
-      this.micSink = this.ctx.createGain();
-      this.micSink.gain.value = 0;
-      this.micSrc.connect(this.micAnalyser).connect(this.micSink).connect(this.ctx.destination);
+      this.micSrc.connect(this.micAnalyser);
+      this.micFreq = new Uint8Array(this.micAnalyser.frequencyBinCount);
       this.micOn = true;
-      this.music.gain.setTargetAtTime(0.0, this.ctx.currentTime, 0.5);
     }
     disableMic() {
       if (this.micStream) this.micStream.getTracks().forEach((t) => t.stop());
-      if (this.micSrc) this.micSrc.disconnect();
-      if (this.micSink) this.micSink.disconnect();
-      this.micStream = this.micSrc = this.micSink = null;
+      if (this.micCtx) this.micCtx.close().catch(() => {});
+      this.micStream = this.micSrc = this.micAnalyser = this.micCtx = null;
       this.micOn = false;
-      setAudioSession('playback');
-      if (this.ready) this.music.gain.setTargetAtTime(1, this.ctx.currentTime, 0.5);
+      if (this.pausedForMic) {
+        this.pausedForMic = false;
+        this.ctx.resume().catch(() => {});
+      }
     }
 
     // ------------------------------------------------------------ analysis
     analyse() {
       const b = this.bands;
-      if (!this.ready) return b;
-      const an = this.micOn && this.micAnalyser ? this.micAnalyser : this.analyser;
-      an.getByteFrequencyData(this.freq);
-      const hz = this.ctx.sampleRate / an.fftSize;
+      const mic = this.micOn && this.micAnalyser;
+      if (!mic && !this.ready) return b;
+      const an = mic ? this.micAnalyser : this.analyser;
+      const freq = mic ? this.micFreq : this.freq;
+      an.getByteFrequencyData(freq);
+      const hz = an.context.sampleRate / an.fftSize;
       const avg = (lo, hi) => {
-        const a = Math.max(1, Math.floor(lo / hz)), z = Math.min(this.freq.length - 1, Math.ceil(hi / hz));
+        const a = Math.max(1, Math.floor(lo / hz)), z = Math.min(freq.length - 1, Math.ceil(hi / hz));
         let s = 0;
-        for (let i = a; i <= z; i++) s += this.freq[i];
+        for (let i = a; i <= z; i++) s += freq[i];
         return s / ((z - a + 1) * 255);
       };
       const gain = this.micOn ? 1.6 : 1.0;

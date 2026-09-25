@@ -232,9 +232,6 @@ svg .fill { fill: currentColor; stroke: none; }
   left: 50%;
   bottom: calc(20px + var(--safe-b));
   transform: translateX(-50%);
-  display: flex;
-  align-items: center;
-  gap: 4px;
   padding: 6px;
   max-width: calc(100vw - 24px);
   border-radius: 20px;
@@ -244,10 +241,26 @@ svg .fill { fill: currentColor; stroke: none; }
   -webkit-backdrop-filter: blur(18px) saturate(150%);
   box-shadow: 0 10px 40px rgba(0, 0, 0, 0.35);
   transition: opacity 0.8s var(--ease), transform 0.8s var(--ease);
+}
+/* The buttons scroll inside the glass; edges fade out when more buttons are hidden there. */
+@property --fade-l { syntax: "<length>"; inherits: false; initial-value: 0px; }
+@property --fade-r { syntax: "<length>"; inherits: false; initial-value: 0px; }
+.dock-track {
+  --fade-l: 0px;
+  --fade-r: 0px;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  border-radius: 14px;
   overflow-x: auto;
   scrollbar-width: none;
+  -webkit-mask-image: linear-gradient(to right, transparent, #000 var(--fade-l), #000 calc(100% - var(--fade-r)), transparent);
+  mask-image: linear-gradient(to right, transparent, #000 var(--fade-l), #000 calc(100% - var(--fade-r)), transparent);
+  transition: --fade-l 0.3s ease, --fade-r 0.3s ease;
 }
-.dock::-webkit-scrollbar { display: none; }
+.dock-track::-webkit-scrollbar { display: none; }
+.dock-track.more-left { --fade-l: 44px; }
+.dock-track.more-right { --fade-r: 44px; }
 body.idle .ui .dock { transform: translate(-50%, 4px); }
 .dock-scroll { display: flex; gap: 2px; }
 .dock-sep { width: 1px; align-self: stretch; margin: 8px 4px; background: var(--line-2); flex: none; }
@@ -493,7 +506,7 @@ input[type="range"]::-moz-range-thumb { width: 16px; height: 16px; border: 0; bo
   .top-actions { top: 10px; right: 10px; padding: 3px; gap: 0; }
   .icon-btn { height: 34px; min-width: 34px; padding: 0 7px; }
   .icon-btn .lbl, #btnFull, #btnRecord { display: none; }
-  .dock { bottom: calc(12px + var(--safe-b)); border-radius: 18px; justify-content: flex-start; }
+  .dock { bottom: calc(12px + var(--safe-b)); border-radius: 18px; }
   .dock-btn { width: 52px; }
   .caption { bottom: calc(112px + var(--safe-b)); }
   .stats { display: none; }

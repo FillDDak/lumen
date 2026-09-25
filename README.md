@@ -3,7 +3,7 @@
 백만 개의 빛 입자로 연주하는 인터랙티브 오디오비주얼 악기.
 빌드 도구도, 외부 라이브러리도, 인터넷 연결도 필요 없습니다.
 
-**▶ 바로 체험하기: https://fillddak.github.io/lumen/**
+**▶ https://fillddak.github.io/lumen/**
 
 ## 실행
 

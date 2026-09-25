@@ -18,6 +18,11 @@
   ];
   const SCALE = [62, 64, 66, 69, 71, 74, 76, 78, 81, 83, 86, 88]; // D major pentatonic
 
+  // Audio Session API (Safari/iOS); a no-op elsewhere.
+  function setAudioSession(type) {
+    try { if (navigator.audioSession) navigator.audioSession.type = type; } catch (e) { /* unsupported */ }
+  }
+
   class AudioEngine {
     constructor() {
       this.ready = false;
@@ -33,8 +38,8 @@
 
     init() {
       if (this.ready) return;
-      // iOS 17+: play through the ringer/silent switch like a media app
-      try { if (navigator.audioSession) navigator.audioSession.type = 'playback'; } catch (e) { /* unsupported */ }
+      // iOS: play through the ringer/silent switch like a media app
+      setAudioSession('playback');
       const AC = window.AudioContext || window.webkitAudioContext;
       const ctx = (this.ctx = new AC({ latencyHint: 'interactive' }));
 
@@ -413,21 +418,41 @@
     // ------------------------------------------------------------ microphone
     async enableMic() {
       if (!this.ready) this.init();
-      const stream = await navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: false, noiseSuppression: false, autoGainControl: true } });
+      if (!window.isSecureContext || !navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+        const err = new Error('Microphone needs a secure (https) page');
+        err.name = 'InsecureContextError';
+        throw err;
+      }
+      // iOS: a 'playback' audio session cannot record, so switch while the mic is on
+      setAudioSession('play-and-record');
+      let stream;
+      try {
+        stream = await navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: false, noiseSuppression: false, autoGainControl: true } });
+      } catch (e) {
+        setAudioSession('playback');
+        throw e;
+      }
+      // the permission prompt can suspend/interrupt the context on mobile
+      if (this.ctx.state !== 'running') await this.ctx.resume().catch(() => {});
       this.micStream = stream;
       this.micSrc = this.ctx.createMediaStreamSource(stream);
       this.micAnalyser = this.ctx.createAnalyser();
       this.micAnalyser.fftSize = 2048;
       this.micAnalyser.smoothingTimeConstant = 0.6;
-      this.micSrc.connect(this.micAnalyser);
+      // some mobile browsers only process nodes that reach the destination: add a silent sink
+      this.micSink = this.ctx.createGain();
+      this.micSink.gain.value = 0;
+      this.micSrc.connect(this.micAnalyser).connect(this.micSink).connect(this.ctx.destination);
       this.micOn = true;
       this.music.gain.setTargetAtTime(0.0, this.ctx.currentTime, 0.5);
     }
     disableMic() {
       if (this.micStream) this.micStream.getTracks().forEach((t) => t.stop());
       if (this.micSrc) this.micSrc.disconnect();
-      this.micStream = this.micSrc = null;
+      if (this.micSink) this.micSink.disconnect();
+      this.micStream = this.micSrc = this.micSink = null;
       this.micOn = false;
+      setAudioSession('playback');
       if (this.ready) this.music.gain.setTargetAtTime(1, this.ctx.currentTime, 0.5);
     }
 

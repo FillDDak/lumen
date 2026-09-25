@@ -140,9 +140,24 @@
     img.src = url;
   }
 
+  // Tell the viewer why the camera / microphone could not start.
+  function mediaErrorMessage(e, device) {
+    const name = (e && e.name) || '';
+    if (name === 'InsecureContextError' || !window.isSecureContext || !navigator.mediaDevices) {
+      return `${device}는 https 주소에서만 쓸 수 있어요`;
+    }
+    if (name === 'NotAllowedError' || name === 'SecurityError') {
+      return `${device} 권한이 막혀 있어요 — 주소창의 자물쇠 아이콘에서 허용해주세요`;
+    }
+    if (name === 'NotFoundError' || name === 'OverconstrainedError') return `사용할 수 있는 ${device}를 찾지 못했어요`;
+    if (name === 'NotReadableError' || name === 'AbortError') return `다른 앱이 ${device}를 쓰고 있어요 — 그 앱을 닫고 다시 시도해주세요`;
+    return `${device}를 켤 수 없어요 (${name || '알 수 없는 오류'})`;
+  }
+
   async function startVideo() {
     if (videoStream) return;
     try {
+      if (!window.isSecureContext || !navigator.mediaDevices) throw Object.assign(new Error('insecure'), { name: 'InsecureContextError' });
       videoStream = await navigator.mediaDevices.getUserMedia({ video: { width: { ideal: 640 }, height: { ideal: 480 }, facingMode: 'user' }, audio: false });
       video.srcObject = videoStream;
       await video.play();
@@ -154,7 +169,7 @@
     } catch (e) {
       console.warn(e);
       videoStream = null;
-      toast('카메라를 켤 수 없어요 — 브라우저의 카메라 권한을 확인해주세요');
+      toast(mediaErrorMessage(e, '카메라'), 4200);
     }
   }
   function stopVideo() {
@@ -297,7 +312,7 @@
       toast('마이크를 켰어요 — 말하거나, 노래하거나, 음악을 틀어보세요');
     } catch (e) {
       console.warn(e);
-      toast('마이크를 켤 수 없어요 — 권한을 확인해주세요');
+      toast(mediaErrorMessage(e, '마이크'), 4200);
     }
   });
 

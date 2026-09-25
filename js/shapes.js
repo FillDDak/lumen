@@ -441,7 +441,7 @@ function lumenShapes(L) {
 
   // ------------------------------------------------------------------ registry
   L.SHAPES = [
-    { id: 'nebula', label: '성운', en: 'Nebula', line: '별이 태어나는 요람', mode: 1, color: 1, dist: 9.5, phi: 0.35, gen: nebula, gain: 0.8 },
+    { id: 'nebula', label: '성운', en: 'Nebula', line: '별이 태어나는 요람', mode: 1, color: 1, dist: 11.5, phi: 0.35, gen: nebula, gain: 0.8 },
     { id: 'galaxy', label: '은하', en: 'Spiral Galaxy', line: '천억 개의 태양이 그리는 소용돌이', mode: 0, color: 0, dist: 6.4, phi: 0.62, gen: galaxy, gain: 1.0 },
     { id: 'planet', label: '행성', en: 'Ringed World', line: '고리를 두른 거인', mode: 0, color: 0, dist: 6.8, phi: 0.36, gen: planet, gain: 1.0 },
     { id: 'butterfly', label: '나비', en: 'The Butterfly Effect', line: '작은 날갯짓 하나가 폭풍을 부른다', mode: 0, color: 0, anim: 1, dist: 6.0, phi: 0.45, gen: butterfly, gain: 0.9 },

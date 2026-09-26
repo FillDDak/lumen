@@ -30,6 +30,7 @@
     return;
   }
   const audio = new L.AudioEngine();
+  audio.onRemote = () => syncSoundIcon(); // play/pause pressed on the lock screen
   audio.volume = settings.volume;
   Object.assign(engine.params, { trail: settings.trail, bloom: settings.bloom, turb: settings.turb, exposure: settings.exposure, size: settings.size });
 
@@ -81,6 +82,7 @@
     cam.baseDist = def.dist;
     cam.fitWidth = def.fitWidth || (cam.front ? 1.3 : 1.05);
     audio.heart = def.anim === 2;
+    audio.setNowPlayingShape(def.id === 'text' ? '' : def.label);
     if (!opts.quiet) audio.whoosh();
     engine.addShock([0, 0, 0], 4, 4.5, 0.8, 1.4, time);
     if (!opts.noCaption) caption(def);

@@ -23,30 +23,41 @@
   // microphone switches to 'play-and-record' while it listens.
   function setAudioSession(type) {
     try { if (navigator.audioSession) navigator.audioSession.type = type; } catch (e) { /* unsupported */ }
-    // Older iOS has no Audio Session API: a looping silent <audio> element puts the
-    // page in "media playback" mode, which also lets Web Audio ignore the silent switch.
-    if (!navigator.audioSession) silentKeepAlive(type === 'playback');
+    // A looping silent <audio> element: on older iOS it puts the page in "media
+    // playback" mode (Web Audio then ignores the silent switch), and on every iOS it is
+    // the media element the "now playing" title and artwork attach to.
+    silentKeepAlive(type === 'playback');
   }
 
   // What iOS / Android show in the "now playing" controls. Full-bleed square
   // artwork: the OS rounds the corners itself, so transparent corners would show white.
-  function setNowPlaying() {
-    if (!('mediaSession' in navigator) || !window.MediaMetadata) return;
+  let nowPlayingSubtitle = '빛의 악기';
+  function setNowPlaying(state) {
+    if (!('mediaSession' in navigator)) return;
     try {
-      navigator.mediaSession.metadata = new MediaMetadata({
-        title: 'LUMEN',
-        artist: '빛의 악기',
-        artwork: [
-          { src: 'icon-512.png?v=5', sizes: '512x512', type: 'image/png' },
-          { src: 'icon-192.png?v=5', sizes: '192x192', type: 'image/png' },
-        ],
-      });
+      if (window.MediaMetadata) {
+        const abs = (src) => new URL(src, location.href).href;
+        navigator.mediaSession.metadata = new MediaMetadata({
+          title: 'LUMEN',
+          artist: nowPlayingSubtitle,
+          album: '빛의 악기',
+          artwork: [
+            { src: abs('icon-512.png?v=5'), sizes: '512x512', type: 'image/png' },
+            { src: abs('icon-192.png?v=5'), sizes: '192x192', type: 'image/png' },
+          ],
+        });
+      }
+      if (state) navigator.mediaSession.playbackState = state;
     } catch (e) { /* unsupported */ }
   }
 
   let keepAlive = null;
   function silentKeepAlive(on) {
-    if (!on) { if (keepAlive) keepAlive.pause(); return; }
+    if (!on) {
+      if (keepAlive) keepAlive.pause();
+      setNowPlaying('paused');
+      return;
+    }
     if (!keepAlive) {
       // 0.25 s of 8-bit mono silence as a WAV file
       const n = 2000, buf = new ArrayBuffer(44 + n), v = new DataView(buf);
@@ -60,7 +71,8 @@
       keepAlive.loop = true;
       keepAlive.setAttribute('playsinline', '');
     }
-    keepAlive.play().catch(() => { /* needs a user gesture; retried on the next one */ });
+    // set the title only once playback has really started, or iOS ignores it
+    keepAlive.play().then(() => setNowPlaying('playing')).catch(() => { /* needs a user gesture */ });
   }
 
   class AudioEngine {
@@ -79,7 +91,13 @@
     init() {
       if (this.ready) return;
       setAudioSession(this.micOn ? 'play-and-record' : 'playback');
-      setNowPlaying();
+      // play / pause in the lock screen and control centre toggle LUMEN's sound
+      if ('mediaSession' in navigator) {
+        try {
+          navigator.mediaSession.setActionHandler('play', () => { this.setMuted(false); if (this.onRemote) this.onRemote(); });
+          navigator.mediaSession.setActionHandler('pause', () => { this.setMuted(true); if (this.onRemote) this.onRemote(); });
+        } catch (e) { /* unsupported */ }
+      }
       const AC = window.AudioContext || window.webkitAudioContext;
       const ctx = (this.ctx = new AC({ latencyHint: 'interactive' }));
 
@@ -184,6 +202,16 @@
     setMuted(m) {
       this.muted = m;
       this.setVolume(this.volume);
+      if (!this.ready || this.micOn) return;
+      if (!m && this.ctx.state !== 'running') this.ctx.resume().catch(() => {});
+      // keep the lock-screen / control-centre player in step: paused while muted
+      silentKeepAlive(!m);
+    }
+
+    // Subtitle in the "now playing" controls, e.g. "빛의 악기 · 은하".
+    setNowPlayingShape(label) {
+      nowPlayingSubtitle = label ? `빛의 악기 · ${label}` : '빛의 악기';
+      if (this.ready && !this.muted && !this.micOn) setNowPlaying();
     }
 
     // ------------------------------------------------------------ sequencer
